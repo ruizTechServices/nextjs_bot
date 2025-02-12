@@ -26,7 +26,6 @@ export async function POST(request: Request) {
       .limit(1)
       .single();
 
-    // If there is no last message, start with position 1
     let userPositionId = lastMessage ? lastMessage.position_id + 1 : 1;
 
     // Insert the user's message into Supabase
@@ -41,16 +40,39 @@ export async function POST(request: Request) {
     ]);
     if (insertUserError) {
       console.error("Error inserting user message:", insertUserError);
-      // Optionally, handle the error appropriately
     }
 
-    // Call OpenAI API for the assistant's response
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
+    // Retrieve the entire conversation history for context
+    const { data: conversationHistory, error: historyError } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("conversation_id", conversation_id)
+      .order("position_id", { ascending: true });
+    if (historyError) {
+      console.error("Error retrieving conversation history:", historyError);
+      return NextResponse.json(
+        { message: "Error retrieving conversation history" },
+        { status: 500 }
+      );
+    }
+
+    // Build the messages array (adding a system message for context)
+    let messages = conversationHistory.map((msg) => ({
+      role: msg.role,
+      content: msg.message,
+    }));
+    messages.unshift({
+      role: "system",
+      content:
+        "You are a helpful assistant. Use the conversation history to maintain context and provide thorough answers.",
     });
 
-    // Validate the response from OpenAI
+    // Call the OpenAI API with the full context
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: messages,
+    });
+
     if (!response.choices || !response.choices[0]?.message?.content) {
       return NextResponse.json(
         { message: "Invalid response from OpenAI" },
@@ -72,7 +94,6 @@ export async function POST(request: Request) {
     ]);
     if (insertAssistantError) {
       console.error("Error inserting assistant message:", insertAssistantError);
-      // Optionally, handle this error as needed
     }
 
     return NextResponse.json({ message: assistantMessage });
