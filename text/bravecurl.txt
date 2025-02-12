@@ -1,0 +1,4 @@
+curl -s --compressed "https://api.search.brave.com/res/v1/web/search?q=brave+search" \
+  -H "Accept: application/json" \
+  -H "Accept-Encoding: gzip" \
+  -H "X-Subscription-Token: BSASG9kOk-_MbeAtxcmw5mifc_StWmZ"
